@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import API from '../api/axiosConfig';
 
@@ -72,6 +72,17 @@ export const Dashboard = () => {
         fetchProducts();
     }, []);
 
+    // NEW FEAT (OPTION 2): Automated Alert Trigger System
+    useEffect(() => {
+        if (hasScanned) {
+            if (radarResults.length > 0) {
+                alert(`🚨 Radar Active: ${radarResults.length} asset nodes successfully intercepted inside the geofence zone!`);
+            } else {
+                alert("🛰️ Radar Scan Complete: No active fleet coordinates detected within this radius.");
+            }
+        }
+    }, [radarResults, hasScanned]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -130,7 +141,6 @@ export const Dashboard = () => {
             setRadarResults(response.data);
             setHasScanned(true);
 
-            // Dynamically pan and re-center the map window to focus on the new scanner target tracking region
             if (mapRef) {
                 mapRef.setView([targetLat, targetLng], 12);
             }
@@ -142,8 +152,22 @@ export const Dashboard = () => {
         }
     };
 
-    // Helper utility to verify if a global network node fell inside the filtered radar intercept collection
     const isNodeIntercepted = (id) => radarResults.some(item => item.id === id);
+
+    // INTERNAL EVENT COMPONENT: Intercepts map grid clicks to auto-populate form variables
+    const MapClickListener = () => {
+        useMapEvents({
+            click: (e) => {
+                const { lat, lng } = e.latlng;
+                setFormData(prev => ({
+                    ...prev,
+                    latitude: lat.toFixed(6),
+                    longitude: lng.toFixed(6)
+                }));
+            },
+        });
+        return null; 
+    };
 
     return (
         <div style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
@@ -211,7 +235,7 @@ export const Dashboard = () => {
                         <h2 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.1rem', color: '#1e293b' }}>Geofence Radar Array Scanner</h2>
                         <form onSubmit={handleGeofenceScan} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>Center Lat</label>
+                                <label style={{ display: 'block', fontSize: '0.7', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>Center Lat</label>
                                 <input type="number" step="0.0001" name="latitude" value={radarCoords.latitude} onChange={handleRadarChange} style={{ width: '100%', padding: '0.4rem', borderRadius: '0.25rem', border: '1px solid #cbd5e1', fontSize: '0.8rem' }} />
                             </div>
                             <div>
@@ -232,7 +256,6 @@ export const Dashboard = () => {
                 {/* RIGHT CONSOLE COLUMN: SPATIAL MAP INTERFACE VISUALS */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     
-                    {/* VISUAL COMPONENT LAYER: THE LIVE LEAFLET VIEWPORT CANVAS */}
                     <div style={{ height: '480px', width: '100%', borderRadius: '0.75rem', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #cbd5e1', zIndex: 1 }}>
                         <MapContainer 
                             center={[11.4102, 76.6950]} 
@@ -245,10 +268,10 @@ export const Dashboard = () => {
                                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                             />
 
-                            {/* Render every trackable matrix asset point logged in our system state loop */}
+                            <MapClickListener />
+
                             {products.map((node) => {
                                 if (!node.latitude || !node.longitude) return null;
-                                
                                 const intercepted = isNodeIntercepted(node.id);
 
                                 return (
@@ -273,11 +296,10 @@ export const Dashboard = () => {
                                 );
                             })}
 
-                            {/* Draw a real-time geofence radius boundary visualization halo whenever an operator scans */}
                             {hasScanned && (
                                 <Circle
                                     center={[parseFloat(radarCoords.latitude), parseFloat(radarCoords.longitude)]}
-                                    radius={parseFloat(radarCoords.radius) * 1000} // Radius converted into meters for Leaflet engine
+                                    radius={parseFloat(radarCoords.radius) * 1000}
                                     pathOptions={{
                                         color: '#3b82f6',
                                         fillColor: '#93c5fd',
@@ -290,7 +312,6 @@ export const Dashboard = () => {
                         </MapContainer>
                     </div>
 
-                    {/* Lower Metric Summary Text Blocks */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <section style={{ backgroundColor: '#eff6ff', padding: '1rem', borderRadius: '0.75rem', border: '1px dashed #bfdbfe' }}>
                             <h3 style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '1rem', color: '#1d4ed8' }}>🎯 Intercept Array Targets ({radarResults.length})</h3>

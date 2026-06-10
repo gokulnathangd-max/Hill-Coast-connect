@@ -1,5 +1,6 @@
 package com.hillcoast.hillcoast_connect.security;
 
+import com.hillcoast.hillcoast_connect.config.RateLimitingFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,9 +24,12 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    // Injecting both filters safely via constructor injection
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, RateLimitingFilter rateLimitingFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
     }
 
     @Bean
@@ -39,7 +43,7 @@ public class SecurityConfig {
             
             // 3. Configure HTTP Request Security Mapping Rules
             .authorizeHttpRequests(auth -> auth
-                // FIX: Permit all browser cross-origin preflight OPTIONS handshakes globally
+                // Permit all browser cross-origin preflight OPTIONS handshakes globally
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // Public authentication routing entry paths
@@ -54,10 +58,11 @@ public class SecurityConfig {
             )
             
             // 4. Force Spring Security to maintain a completely Stateless Session Strategy
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
             
-            // 5. Append our custom JWT interceptor check before the default UsernamePassword filter layer
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        // 5. CRITICAL FIX: Establish strict chaining order using standard filter references
+        http.addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(jwtAuthFilter, RateLimitingFilter.class);
 
         return http.build();
     }

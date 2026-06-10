@@ -2,7 +2,6 @@ package com.hillcoast.hillcoast_connect.service;
 
 import com.hillcoast.hillcoast_connect.model.Product;
 import com.hillcoast.hillcoast_connect.repository.ProductRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -12,8 +11,12 @@ import java.util.Random;
 @Service
 public class TelemetrySimulator {
 
-    @Autowired
-    private ProductRepository productRepository;
+  private final ProductRepository productRepository;
+
+// VS Code can auto-generate this constructor for you!
+public TelemetrySimulator(ProductRepository productRepository) {
+    this.productRepository = productRepository;
+}
 
     private final Random random = new Random();
 

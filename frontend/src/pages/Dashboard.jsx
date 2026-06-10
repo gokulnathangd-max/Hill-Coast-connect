@@ -62,26 +62,54 @@ export const Dashboard = () => {
             const response = await API.get('/products');
             setProducts(response.data);
             setError('');
+            
+            // If a radar scan has already run, recalculate intercepted targets with new coordinates
+            if (hasScanned) {
+                recalculateLiveIntercepts(response.data);
+            }
         } catch (err) {
             console.error("Unable to read streaming telemetry vectors:", err);
             setError('Failed to fetch updated telemetry nodes from the server.');
         }
     };
 
+    // Recalculates matching geofence intercepts on the client-side during the telemetry interval loop
+    const recalculateLiveIntercepts = (latestProducts) => {
+        const targetLat = parseFloat(radarCoords.latitude);
+        const targetLng = parseFloat(radarCoords.longitude);
+        const radiusKm = parseFloat(radarCoords.radius);
+
+        if (isNaN(targetLat) || !targetLng || isNaN(radiusKm)) return;
+
+        // Haversine calculation to verify proximity to current coordinates
+        const filtered = latestProducts.filter(node => {
+            if (!node.latitude || !node.longitude) return false;
+            
+            const R = 6371; // Earth radius in km
+            const dLat = (node.latitude - targetLat) * Math.PI / 180;
+            const dLon = (node.longitude - targetLng) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(targetLat * Math.PI / 180) * Math.cos(node.latitude * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            
+            return distance <= radiusKm;
+        });
+
+        setRadarResults(filtered);
+    };
+
+    // Keeps fetching the latest positions from the backend simulation loop every 5 seconds automatically
     useEffect(() => {
         fetchProducts();
-    }, []);
 
-    // NEW FEAT (OPTION 2): Automated Alert Trigger System
-    useEffect(() => {
-        if (hasScanned) {
-            if (radarResults.length > 0) {
-                alert(`🚨 Radar Active: ${radarResults.length} asset nodes successfully intercepted inside the geofence zone!`);
-            } else {
-                alert("🛰️ Radar Scan Complete: No active fleet coordinates detected within this radius.");
-            }
-        }
-    }, [radarResults, hasScanned]);
+        const telemetryInterval = setInterval(() => {
+            fetchProducts();
+        }, 5000);
+
+        return () => clearInterval(telemetryInterval);
+    }, [hasScanned, radarCoords]); // Dependency triggers keep tracking precise map configurations
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -154,6 +182,18 @@ export const Dashboard = () => {
 
     const isNodeIntercepted = (id) => radarResults.some(item => item.id === id);
 
+    // Compute basic visual metrics for our dashboard overlay analytics
+    const computeMetrics = () => {
+        const totalItems = products.length;
+        const totalValue = products.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
+        const interceptedCount = radarResults.length;
+        const interceptPercentage = totalItems > 0 ? ((interceptedCount / totalItems) * 100).toFixed(1) : 0;
+
+        return { totalItems, totalValue, interceptedCount, interceptPercentage };
+    };
+
+    const metrics = computeMetrics();
+
     // INTERNAL EVENT COMPONENT: Intercepts map grid clicks to auto-populate form variables
     const MapClickListener = () => {
         useMapEvents({
@@ -180,6 +220,26 @@ export const Dashboard = () => {
                     Active Network Relays: ({products.length})
                 </div>
             </header>
+
+            {/* LIVE ANALYTICS TILES BLOCK */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ backgroundColor: '#ffffff', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Global Nodes Tracked</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginTop: '0.25rem' }}>{metrics.totalItems}</div>
+                </div>
+                <div style={{ backgroundColor: '#ffffff', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Total Portfolio Inventory</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginTop: '0.25rem' }}>₹{metrics.totalValue.toLocaleString('en-IN')}</div>
+                </div>
+                <div style={{ backgroundColor: '#ffffff', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', borderLeft: '4px solid #ef4444' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', textTransform: 'uppercase' }}>Geofence Intercepts</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ef4444', marginTop: '0.25rem' }}>{metrics.interceptedCount}</div>
+                </div>
+                <div style={{ backgroundColor: '#ffffff', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Density Match Ring</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3b82f6', marginTop: '0.25rem' }}>{metrics.interceptPercentage}%</div>
+                </div>
+            </div>
 
             {error && (
                 <div style={{ padding: '1rem', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid #fee2e2' }}>
@@ -235,7 +295,7 @@ export const Dashboard = () => {
                         <h2 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.1rem', color: '#1e293b' }}>Geofence Radar Array Scanner</h2>
                         <form onSubmit={handleGeofenceScan} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.7', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>Center Lat</label>
+                                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>Center Lat</label>
                                 <input type="number" step="0.0001" name="latitude" value={radarCoords.latitude} onChange={handleRadarChange} style={{ width: '100%', padding: '0.4rem', borderRadius: '0.25rem', border: '1px solid #cbd5e1', fontSize: '0.8rem' }} />
                             </div>
                             <div>
@@ -286,8 +346,7 @@ export const Dashboard = () => {
                                                 <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#475569' }}>{node.description}</p>
                                                 <div style={{ fontSize: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
                                                     <div>Price: <strong>₹{node.price}</strong></div>
-                                                    <div>Operator: <em>{node.producer?.username}</em></div>
-                                                    <div>Role Status: <span style={{ fontWeight: 700, color: node.producer?.role === 'BUYER' ? '#ef4444' : '#10b981' }}>{node.producer?.role}</span></div>
+                                                    <div>Quantity: <strong>{node.quantity || 0}</strong></div>
                                                     {intercepted && <div style={{ color: '#ef4444', fontWeight: 'bold', marginTop: '4px' }}>🎯 RADAR INTERCEPTED</div>}
                                                 </div>
                                             </div>
@@ -331,7 +390,7 @@ export const Dashboard = () => {
                                 {products.map(node => (
                                     <div key={node.id} style={{ backgroundColor: '#f8fafc', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
                                         <span>{node.name}</span>
-                                        <span style={{ fontWeight: 600, color: node.producer?.role === 'BUYER' ? '#ef4444' : '#10b981' }}>{node.producer?.role}</span>
+                                        <span style={{ color: '#64748b' }}>Qty: {node.quantity || 0}</span>
                                     </div>
                                 ))}
                             </div>

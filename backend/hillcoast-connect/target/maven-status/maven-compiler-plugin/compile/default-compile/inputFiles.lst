@@ -2,6 +2,7 @@ D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillco
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\controller\OrderController.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\controller\ProductController.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\controller\ReviewController.java
+D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\exception\GlobalExceptionHandler.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\HillcoastConnectApplication.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\model\Order.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\model\OrderItem.java
@@ -15,3 +16,4 @@ D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillco
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\security\JwtAuthFilter.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\security\JwtUtil.java
 D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\security\SecurityConfig.java
+D:\Projects\hillcoast-connect\backend\hillcoast-connect\src\main\java\com\hillcoast\hillcoast_connect\service\TelemetrySimulator.java

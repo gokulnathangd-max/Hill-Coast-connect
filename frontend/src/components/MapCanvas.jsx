@@ -18,9 +18,12 @@ const ChangeView = ({ center }) => {
   return null;
 };
 
-export const MapCanvas = ({ items }) => {
-  // Default camera tracking focal point (e.g., center over regional hubs or your database defaults)
-  const defaultCenter = items.length > 0 ? [items[0].latitude, items[0].longitude] : [11.0168, 76.9558];
+export const MapCanvas = ({ items = [] }) => {
+  // Filter out any entries that missing spatial parameters to avoid component crashes
+  const validItems = items.filter(item => item && item.latitude != null && item.longitude != null);
+
+  // Default camera tracking focal point (e.g., Coimbatore hub center or first item coordinate)
+  const defaultCenter = validItems.length > 0 ? [validItems[0].latitude, validItems[0].longitude] : [11.0168, 76.9558];
 
   return (
     <div style={{ height: '100%', width: '100%', borderRadius: '0.75rem', overflow: 'hidden', position: 'relative' }}>
@@ -38,12 +41,13 @@ export const MapCanvas = ({ items }) => {
         />
 
         {/* Dynamic coordinate marker pinpoint loops */}
-        {items.map((item) => (
+        {validItems.map((item) => (
           <Marker key={item.id} position={[item.latitude, item.longitude]}>
             <Popup>
               <div style={{ fontFamily: 'sans-serif', padding: '0.25rem' }}>
                 <strong style={{ color: '#0f172a', fontSize: '0.9rem' }}>{item.name}</strong>
-                <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.8rem' }}>Stock: {item.stockQuantity} units</p>
+                {/* MATCH FIXED: Changed item.stockQuantity to item.quantity to align with your Spring entity layout */}
+                <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.8rem' }}>Stock: {item.quantity != null ? item.quantity : 0} units</p>
                 <p style={{ margin: '0.25rem 0 0', color: '#059669', fontSize: '0.8rem', fontWeight: 'bold' }}>₹{item.price}</p>
               </div>
             </Popup>

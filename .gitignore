@@ -1,0 +1,14 @@
+# Target all node_modules at any depth level
+**/node_modules/
+node_modules/
+frontend/node_modules/
+
+# Target all Java build target folders at any depth level
+**/target/
+backend/hillcoast-connect/target/
+
+# Ignore lock files and compiled binaries
+package-lock.json
+*.class
+.idea/
+.vscode/

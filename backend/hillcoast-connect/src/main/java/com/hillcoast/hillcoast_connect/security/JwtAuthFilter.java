@@ -27,7 +27,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
-        // FIX: Ensure preflight OPTIONS calls bypass token processing entirely to prevent 403 blocks
+        // Bypass token evaluation entirely for authentication endpoints and CORS preflights
         return path.startsWith("/api/auth/") || request.getMethod().equalsIgnoreCase("OPTIONS");
     }
 
@@ -39,31 +39,40 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = null;
         String username = null;
 
-        // Reads the space-separated Bearer signature correctly
+        // 1. Verify the format of the incoming authorization header before parsing
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7).trim();
             try {
                 username = jwtUtil.extractUsername(token);
             } catch (Exception e) {
-                System.out.println("JWT Token parsing extraction failure: " + e.getMessage());
+                logger.error("JWT Token parsing extraction failure: " + e.getMessage());
             }
         }
 
+        // 2. If a valid username is found and the security execution context context is clear, evaluate credentials
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             if (jwtUtil.validateToken(token)) {
+                // Extract role parameter embedded in the JWT payload claims matrix
                 String role = jwtUtil.extractRole(token);
                 
+                // Enforce the standard Spring Security prefix matching convention
                 String roleWithPrefix = (role != null && !role.startsWith("ROLE_")) ? "ROLE_" + role : role;
-                List<SimpleGrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority(roleWithPrefix));
+                
+                if (roleWithPrefix != null) {
+                    List<SimpleGrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority(roleWithPrefix));
 
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(username, null, authorities);
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(username, null, authorities);
 
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    
+                    // Inject the fully built token context into the central security thread holder
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
         }
 
+        // Forward the request context down the filter chain processing line
         filterChain.doFilter(request, response);
     }
 }

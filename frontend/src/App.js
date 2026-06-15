@@ -1,45 +1,37 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { Login } from './pages/Login';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import LoginPortal from './pages/Login'; // Importing as LoginPortal
+import Register from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
-import { Register } from './pages/Register'; // 1. Added the Register import here
 
-
-/**
- * Security Guard Component
- * Intercepts unauthenticated navigation attempts to secure views.
- */
+// Secure Route Shielding Element
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return children;
+    const token = localStorage.getItem('auth_token');
+    return token ? children : <Navigate to="/" replace />;
 };
 
+// MASTER WRAPPER FUNCTION
 export default function App() {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        {/* 2. Your routes block sits right here inside the router core context container */}
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} /> {/* Fully public signup path */}
-          
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
+    return (
+        <Router>
+            <Routes>
+                /* Public Gateway Paths */
+                <Route path="/" element={<LoginPortal />} /> {/* FIXED: Changed from <Login /> to <LoginPortal /> */}
+                <Route path="/register" element={<Register />} />
+
+                /* Authenticated Dashboard Pipeline - Shielded by Token Filter */
+                <Route 
+                    path="/dashboard" 
+                    element={
+                        <ProtectedRoute>
+                            <Dashboard />
+                        </ProtectedRoute>
+                    } 
+                />
+                
+                /* Fallback Global Redirect */
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </Router>
+    );
 }

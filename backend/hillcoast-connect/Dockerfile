@@ -4,9 +4,8 @@
 FROM maven:3.8.5-openjdk-17 AS build
 WORKDIR /app
 
-# Copy the pom.xml and source code into the container
-COPY pom.xml .
-COPY src ./src
+# Copy all backend contents into the container build directory
+COPY . .
 
 # Compile and package the application into a JAR file, skipping tests for faster deployment
 RUN mvn clean package -DskipTests
@@ -23,5 +22,5 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose port 8080 (the standard port Render looks for)
 EXPOSE 8080
 
-# Run the app with strict heap limitations optimized for Render's 512MB memory boundary
+# Run the app using the memory-optimized options we set in Render
 ENTRYPOINT ["sh", "-c", "java -Xmx256m -Xms128m $JAVA_OPTS -jar app.jar"]

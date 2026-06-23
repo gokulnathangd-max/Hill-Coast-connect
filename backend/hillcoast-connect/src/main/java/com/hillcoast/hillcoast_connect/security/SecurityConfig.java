@@ -2,6 +2,7 @@ package com.hillcoast.hillcoast_connect.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -43,8 +44,15 @@ public class SecurityConfig {
                 // Public endpoints that don't need authentication evaluation
                 .requestMatchers("/api/auth/**").permitAll()
                 
-                // FIXED: Authorize spatial mapping, geofencing, and order streams for any authenticated profile
-                .requestMatchers("/api/products/**").authenticated() 
+                // --- FINE-GRAINED PRODUCT TELEMETRY PERMISSIONS ---
+                // Anyone logged in can view products or scan proximity arrays
+                .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/nearby").authenticated()
+                
+                // ONLY Producers can deploy (POST) or decommission (DELETE) asset nodes
+                .requestMatchers(HttpMethod.POST, "/api/products").hasAnyRole("PRODUCER")
+                .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasAnyRole("PRODUCER")
+                
+                // --- OTHER SYSTEM ROUTE BLOCKS ---
                 .requestMatchers("/api/orders/**").authenticated()
                 .requestMatchers("/api/analytics/**").authenticated() 
                 
@@ -52,6 +60,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/producer/**").hasAnyRole("PRODUCER")
                 .requestMatchers("/api/customer/**").hasAnyRole("CUSTOMER", "ADMIN")
                 .requestMatchers("/api/admin/**").hasAnyRole("ADMIN")
+
+                // Inside your SecurityFilterChain Bean config authorization rule loop block:
+                .requestMatchers("/api/orders/**").authenticated()
                 
                 // Any other traffic requires basic token verification
                 .anyRequest().authenticated()

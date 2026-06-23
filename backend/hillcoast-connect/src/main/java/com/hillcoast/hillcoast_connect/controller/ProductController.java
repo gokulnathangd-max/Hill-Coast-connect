@@ -12,7 +12,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -31,8 +34,29 @@ public class ProductController {
      * Maps to: GET http://localhost:8080/api/products
      */
     @GetMapping("/products")
-    public ResponseEntity<List<Product>> getAllProducts() {
-        return ResponseEntity.ok(productRepository.findAll());
+    public ResponseEntity<?> getAllProducts() {
+        try {
+            List<Product> products = productRepository.findAll();
+            
+            List<Map<String, Object>> flatList = products.stream().map(p -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", p.getId());
+                map.put("name", p.getName());
+                map.put("price", p.getPrice());
+                map.put("quantity", p.getQuantity());
+                map.put("latitude", p.getLatitude());
+                map.put("longitude", p.getLongitude());
+                if (p.getUser() != null) {
+                    map.put("producerName", p.getUser().getUsername());
+                }
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(flatList);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to parse network streams: " + e.getMessage());
+        }
     }
 
     /**
@@ -45,7 +69,38 @@ public class ProductController {
             @RequestParam("radius") Double radius) {
         try {
             List<Product> proximalNodes = productRepository.findNearbyProducts(latitude, longitude, radius);
-            return ResponseEntity.ok(proximalNodes);
+            
+            List<Map<String, Object>> flatList = proximalNodes.stream().map(p -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", p.getId());
+                map.put("name", p.getName());
+                map.put("price", p.getPrice());
+                map.put("quantity", p.getQuantity());
+                map.put("latitude", p.getLatitude());
+                map.put("longitude", p.getLongitude());
+                if (p.getUser() != null) {
+                    map.put("producerName", p.getUser().getUsername());
+                }
+
+                // --- LIVE MATHEMATICAL DISTANCE INJECTION ---
+                double lat1 = Math.toRadians(latitude);
+                double lon1 = Math.toRadians(longitude);
+                double lat2 = Math.toRadians(p.getLatitude());
+                double lon2 = Math.toRadians(p.getLongitude());
+
+                double dlon = lon2 - lon1;
+                double dlat = lat2 - lat1;
+                double a = Math.pow(Math.sin(dlat / 2), 2)
+                         + Math.cos(lat1) * Math.cos(lat2)
+                         * Math.pow(Math.sin(dlon / 2), 2);
+                double c = 2 * Math.asin(Math.sqrt(a));
+                double calculatedDistance = 6371 * c;
+
+                map.put("distanceText", String.format("%.1f KM away", calculatedDistance));
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(flatList);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Geofence parsing exception inside backend core: " + e.getMessage());
@@ -59,13 +114,11 @@ public class ProductController {
     @Transactional 
     public ResponseEntity<?> createProduct(@RequestBody Product product) {
         try {
-            // Step 1: Payload validation guard rule
             if (product == null || product.getName() == null || product.getLatitude() == null || product.getLongitude() == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Deployment Rejected: Missing required coordinate telemetry metadata parameters.");
+                        .body("Deployment Rejected: Missing required telemetry metadata parameters.");
             }
 
-            // Step 2: Null-safe session extraction check
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -73,26 +126,36 @@ public class ProductController {
             }
 
             String currentUsername = authentication.getName();
-
-            // Step 3: Match identifier string to active database row context
             User currentUser = userRepository.findByUsername(currentUsername)
                     .orElseThrow(() -> new UsernameNotFoundException("Security error: User profile not found for " + currentUsername));
 
-            // Step 4: Map standard bidirectional entity association keys
             product.setUser(currentUser);
-
-            // Step 5: Save record securely to your schema table
             Product savedProduct = productRepository.save(product);
-
-            // Step 6: Return object cleanly. The paired Json reference annotations will handle serialization smoothly.
             return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
 
         } catch (UsernameNotFoundException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace(); 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Core Database Pipeline Mismatch Rejection: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Maps to: DELETE http://localhost:8080/api/products/{id}
+     */
+    @DeleteMapping("/products/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteProduct(@PathVariable("id") Long id) {
+        try {
+            if (!productRepository.existsById(id)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Target asset node does not exist.");
+            }
+            productRepository.deleteById(id);
+            return ResponseEntity.ok("Asset node successfully decommissioned from perimeter grid.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Deletion rejection: " + e.getMessage());
         }
     }
 }
